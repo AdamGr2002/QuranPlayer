@@ -1,8 +1,7 @@
 import { WebSocketServer } from 'ws';
-import http from 'http';
 
-export function setupWebSocketServer(server: http.Server) {
-  const wss = new WebSocketServer({ server });
+export function setupWebSocketServer(server) {
+  const wss = new WebSocketServer({ server, path: '/ws' });
 
   let listeners = 0;
 
@@ -18,7 +17,9 @@ export function setupWebSocketServer(server: http.Server) {
 
   function broadcastListeners() {
     wss.clients.forEach((client) => {
-      client.send(JSON.stringify({ listeners }));
+      if (client.readyState === WebSocketServer.OPEN) {
+        client.send(JSON.stringify({ listeners }));
+      }
     });
   }
 

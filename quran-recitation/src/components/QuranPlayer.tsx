@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef } from 'react'
-import { Play, Pause, Volume2, Users } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Play, Pause, Volume2, Users, WifiOff } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface Surah {
   id: number
@@ -24,27 +25,55 @@ export default function QuranPlayer() {
   const [surahs, setSurahs] = useState<Surah[]>([])
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
   const [liveListeners, setLiveListeners] = useState(0)
+  const [isConnected, setIsConnected] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const ws = useRef<WebSocket | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    fetch('/api/chapters')
-      .then(response => response.json())
-      .then(data => setSurahs(data.chapters))
+  const connectWebSocket = useCallback(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/ws`
 
-    // Setup WebSocket connection
-    ws.current = new WebSocket(`ws://${window.location.host}`)
-    
+    ws.current = new WebSocket(wsUrl)
+
+    ws.current.onopen = () => {
+      setIsConnected(true)
+      setConnectionError(null)
+    }
+
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data)
       setLiveListeners(data.listeners)
     }
 
+    ws.current.onclose = () => {
+      setIsConnected(false)
+      reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000)
+    }
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error)
+      setConnectionError('Failed to connect to the server. Retrying...')
+    }
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/chapters')
+      .then(response => response.json())
+      .then(data => setSurahs(data.chapters))
+      .catch(error => console.error('Error fetching chapters:', error))
+
+    connectWebSocket()
+
     return () => {
       if (ws.current) {
         ws.current.close()
       }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
     }
-  }, [])
+  }, [connectWebSocket])
 
   useEffect(() => {
     if (surahs.length > 0) {
@@ -64,6 +93,7 @@ export default function QuranPlayer() {
         setAudio(newAudio)
         setIsPlaying(false)
       })
+      .catch(error => console.error('Error loading audio:', error))
   }
 
   const togglePlayPause = () => {
@@ -88,9 +118,23 @@ export default function QuranPlayer() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-cover bg-center bg-fixed" style={{backgroundImage: "url('/images/quran-background.jpg')"}}>
       <div className="max-w-md w-full p-8 rounded-lg shadow-lg bg-white bg-opacity-90 backdrop-blur-sm">
         <h1 className="text-3xl font-bold mb-6 text-center text-[#8B4513] font-arabic">القرآن الكريم</h1>
+        {connectionError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{connectionError}</AlertDescription>
+          </Alert>
+        )}
         <div className="flex items-center justify-center mb-4 text-[#8B4513]">
-          <Users className="w-5 h-5 mr-2" />
-          <span className="text-sm font-medium">{liveListeners} people tuned in</span>
+          {isConnected ? (
+            <>
+              <Users className="w-5 h-5 mr-2" />
+              <span className="text-sm font-medium">{liveListeners} people tuned in</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-5 h-5 mr-2" />
+              <span className="text-sm font-medium">Connecting...</span>
+            </>
+          )}
         </div>
         {surahs.length > 0 && (
           <div className="mb-6 text-center">
@@ -136,5 +180,4 @@ export default function QuranPlayer() {
         </ScrollArea>
       </div>
     </div>
-  )
-}
+  )}

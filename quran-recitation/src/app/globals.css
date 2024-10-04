@@ -78,7 +78,7 @@ body {
 }
 @font-face {
   font-family: 'Arabic Font';
-  src: url('public/fonts/ScheherazadeNew-Regular.ttf') format('ttf');
+  src: url('/fonts/ScheherazadeNew-Regular.ttf') format('ttf');
 }
 
 .font-arabic {

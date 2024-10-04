@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "lint": "next lint",
-    "dev": "node server.js",
+    "dev": "node server.mjs",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js"
+    "start": "NODE_ENV=production node server.mjs"
   },
   "dependencies": {
     "@radix-ui/react-icons": "^1.3.0",
